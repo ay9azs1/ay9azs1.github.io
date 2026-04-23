@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>WebGIS 地图作业（带专题图层）</title>
+    <!-- 稳定低版本 ArcGIS API for JavaScript 4.28 -->
+    <link rel="stylesheet" href="https://js.arcgis.com/4.28/esri/themes/light/main.css">
+    <script src="https://js.arcgis.com/4.28/"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+        /* 1. 页眉区域 */
+        #header {
+            height: 60px;
+            background-color: #2c3e50;
+            color: white;
+            line-height: 60px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        /* 主体容器 */
+        #main-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        /* 2. 底图与图层控制区域 */
+        #sidebar {
+            width: 280px;
+            background-color: #f5f7fa;
+            padding: 15px;
+            border-right: 1px solid #e0e0e0;
+            overflow-y: auto;
+        }
+        /* 3. 地图区域 */
+        #map-container {
+            flex: 1;
+            position: relative;
+        }
+        .control-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 15px 0 8px;
+            color: #2c3e50;
+        }
+        .basemap-btn {
+            display: block;
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 4px;
+            background-color: #3498db;
+            color: white;
+            cursor: pointer;
+        }
+        .basemap-btn:hover {
+            background-color: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <!-- 页眉区域 -->
+    <div id="header">WebGIS 地图应用作业 - 疫情病例专题图</div>
+
+    <!-- 主体：地图区域 + 控制区域 -->
+    <div id="main-container">
+        <!-- 底图与图层控制区域 -->
+        <div id="sidebar">
+            <div class="control-title">底图切换</div>
+            <button class="basemap-btn" onclick="changeBasemap('streets')">街道底图</button>
+            <button class="basemap-btn" onclick="changeBasemap('satellite')">卫星底图</button>
+            <button class="basemap-btn" onclick="changeBasemap('topo-vector')">地形底图</button>
+
+            <div class="control-title">图层列表</div>
+            <div id="layerList"></div>
+        </div>
+
+        <!-- 地图区域 -->
+        <div id="map-container"></div>
+    </div>
+
+    <script>
+        require([
+            "esri/Map",
+            "esri/views/MapView",
+            "esri/layers/FeatureLayer",
+            "esri/widgets/LayerList",
+            "esri/widgets/ScaleBar",
+            "esri/widgets/Legend",
+            "esri/widgets/Search"
+        ], function(Map, MapView, FeatureLayer, LayerList, ScaleBar, Legend, Search) {
+
+            // 1. 创建地图，默认加载街道底图
+            const map = new Map({
+                basemap: "streets"
+            });
+
+            // 2. 添加你提供的 Geoscene Online 专题图层
+            const covidLayer = new FeatureLayer({
+                url: "https://www.geosceneonline.cn/server/rest/services/Hosted/新型冠状病毒疫情全球病例统计new/FeatureServer",
+                title: "全球新冠疫情病例统计"
+            });
+            map.add(covidLayer);
+
+            // 3. 创建地图视图
+            const view = new MapView({
+                container: "map-container",
+                map: map,
+                center: [116.4, 39.9], // 初始定位：北京
+                zoom: 3
+            });
+
+            // 4. 加载完成后添加所有控件
+            view.when(function() {
+                // 图层列表（显示在侧边栏）
+                const layerList = new LayerList({
+                    view: view,
+                    container: "layerList"
+                });
+
+                // 比例尺（左下角）
+                const scaleBar = new ScaleBar({
+                    view: view,
+                    unit: "metric"
+                });
+                view.ui.add(scaleBar, "bottom-left");
+
+                // 图例（右上角）
+                const legend = new Legend({
+                    view: view
+                });
+                view.ui.add(legend, "top-right");
+
+                // 搜索框（左上角）
+                const search = new Search({
+                    view: view
+                });
+                view.ui.add(search, "top-left");
+            });
+
+            // 5. 底图切换函数（侧边栏按钮调用）
+            window.changeBasemap = function(basemapId) {
+                map.basemap = basemapId;
+            }
+        });
+    </script>
+</body>
+</html>
