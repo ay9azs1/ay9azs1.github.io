@@ -2,158 +2,560 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>WebGIS 地图作业（带专题图层）</title>
-    <!-- 稳定低版本 ArcGIS API for JavaScript 4.28 -->
-    <link rel="stylesheet" href="https://js.arcgis.com/4.28/esri/themes/light/main.css">
-    <script src="https://js.arcgis.com/4.28/"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>福州中轴线时空叙事地图 | 闽都千年文脉</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            font-family: "Source Han Serif CN", "KaiTi", "SimSun", serif;
         }
-        body {
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            font-family: "Microsoft YaHei", sans-serif;
-        }
-        /* 1. 页眉区域 */
-        #header {
-            height: 60px;
-            background-color: #2c3e50;
-            color: white;
-            line-height: 60px;
-            text-align: center;
-            font-size: 20px;
-            font-weight: bold;
-        }
-        /* 主体容器 */
-        #main-container {
-            flex: 1;
-            display: flex;
+
+        html, body {
+            width: 100%;
+            height: 100%;
             overflow: hidden;
+            background-color: #f8f3eb;
         }
-        /* 2. 底图与图层控制区域 */
-        #sidebar {
-            width: 280px;
-            background-color: #f5f7fa;
-            padding: 15px;
-            border-right: 1px solid #e0e0e0;
-            overflow-y: auto;
+
+        .navbar {
+            width: 100%;
+            height: 60px;
+            background-color: #78401a;
+            background-image: linear-gradient(rgba(120,64,26,0.96),rgba(120,64,26,0.96)),url("data:image/svg+xml,%3Csvg width='120' height='60' viewBox='0 0 120 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 30 Q30 10 60 30 T120 30' fill='none' stroke='rgba(255,255,255,0.07)' stroke-width='1.2'/%3E%3C/svg%3E");
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 35px;
+            color: #fff;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 10000;
+            box-shadow: 0 2px 12px rgba(120, 64, 26, 0.22);
         }
-        /* 3. 地图区域 */
-        #map-container {
-            flex: 1;
+        .navbar .project-title {
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: 1.2px;
+        }
+        .nav-menu {
+            display: flex;
+            gap: 28px;
+        }
+        .nav-menu a {
+            color: #fff;
+            text-decoration: none;
+            font-size: 14px;
+            opacity: 0.92;
+            transition: all 0.3s ease;
             position: relative;
         }
-        .control-title {
-            font-size: 16px;
-            font-weight: bold;
-            margin: 15px 0 8px;
-            color: #2c3e50;
+        .nav-menu a::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            bottom: -3px;
+            width: 0;
+            height: 2px;
+            background-color: #fff;
+            transition: width 0.3s ease;
         }
-        .basemap-btn {
-            display: block;
-            width: 100%;
-            padding: 8px;
-            margin: 5px 0;
-            border: none;
-            border-radius: 4px;
-            background-color: #3498db;
-            color: white;
-            cursor: pointer;
+        .nav-menu a:hover { opacity: 1; }
+        .nav-menu a:hover::after { width: 100%; }
+
+        #map {
+            position: absolute;
+            top: 60px;
+            left: 0;
+            width: 70%;
+            height: calc(100% - 130px);
+            z-index: 1;
+            background-color: #f3ede2;
         }
-        .basemap-btn:hover {
-            background-color: #2980b9;
+
+        .map-qing .leaflet-tile-pane { filter: sepia(92%) contrast(88%) brightness(102%) saturate(22%); }
+        .map-minguo .leaflet-tile-pane { filter: sepia(78%) contrast(90%) brightness(106%) saturate(32%); }
+        .map-modern .leaflet-tile-pane { filter: saturate(60%) brightness(98%); }
+        .leaflet-tile-pane { transition: all 0.8s ease; }
+
+        .left-panel {
+            position: absolute;
+            top: 75px;
+            left: 16px;
+            background: #fff;
+            border:1px solid #e0cbb7;
+            border-radius: 10px;
+            box-shadow: 0 3px 16px rgba(120, 64, 26, 0.14);
+            padding: 14px;
+            z-index: 9999;
+            width: 160px;
+        }
+        .left-panel h4 {
+            font-size: 14px;
+            color: #78401a;
+            margin-bottom: 10px;
+            border-left: 2px solid #d4b89c;
+            padding-left: 6px;
+        }
+        .layer-item,.filter-item {
+            margin: 7px 0;
+            font-size: 13px;
+            color: #555;
+            display: flex;
+            align-items: center;
+            gap:6px;
+        }
+        input[type="radio"],input[type="checkbox"] { accent-color: #78401a; width:14px;height:14px; }
+
+        .legend-panel {
+            position: absolute;
+            bottom: 70px;
+            left: 16px;
+            background: #fff;
+            border:1px solid #e0cbb7;
+            border-radius: 10px;
+            box-shadow: 0 3px 16px rgba(120, 64, 26, 0.14);
+            padding: 14px;
+            z-index: 9999;
+            width: 190px;
+        }
+        .legend-panel h4 {
+            font-size: 14px;
+            color: #78401a;
+            margin-bottom: 10px;
+            border-left: 2px solid #d4b89c;
+            padding-left: 6px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin:7px 0;
+            font-size:12px;
+            color:#555;
+        }
+        .dot {
+            width:14px;height:14px;border-radius:50%;margin-right:8px;border:2px solid #fff;box-shadow:0 1px 2px rgba(0,0,0,0.1);
+        }
+        .tech-info {
+            margin-top:10px;font-size:11px;color:#777;line-height:1.4;border-top:1px dashed #eee;padding-top:8px;
+        }
+
+        .story-panel {
+            position: absolute;
+            top: 60px;
+            right: 0;
+            width: 30%;
+            height: calc(100% - 130px);
+            background-color: #fffdf7;
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h100v100H0z' fill='%23f8f3eb' fill-opacity='0.35'/%3E%3C/svg%3E");
+            border-left: 2px solid #e6d2bc;
+            padding: 24px;
+            z-index: 9999;
+            overflow-y: auto;
+        }
+        .story-panel::-webkit-scrollbar { width:4px; }
+        .story-panel::-webkit-scrollbar-thumb { background:#d4b89c;border-radius:2px; }
+        .main-title {
+            font-size: 24px;
+            color: #78401a;
+            text-align: center;
+            margin-bottom:8px;
+            letter-spacing:1.5px;
+        }
+        .sub-title {
+            font-size:14px;
+            color:#997554;
+            text-align:center;
+            padding-bottom:18px;
+            border-bottom:2px solid #e6d2bc;
+            margin-bottom:24px;
+        }
+        .content h3 {
+            font-size:18px;
+            color:#78401a;
+            margin:18px 0 12px;
+            padding-left:10px;
+            border-left:3px solid #d4b89c;
+        }
+        .content p {
+            font-size:14px;
+            line-height:1.8;
+            color:#444;
+            margin-bottom:14px;
+            text-indent:2em;
+        }
+        .divider {
+            height:1px;background:linear-gradient(to right,transparent,#d4b89c,transparent);margin:16px 0;
+        }
+        .transition-line {
+            font-size:13px;
+            color:#886644;
+            text-align:right;
+            margin:8px 0 16px;
+            font-style:italic;
+        }
+        .time-tag {
+            display:inline-block;padding:2px 8px;background:#f0e6d6;color:#78401a;font-size:12px;border-radius:4px;margin-bottom:10px;
+        }
+        .story-tip {
+            background:#faf3e9;
+            padding:10px 12px;
+            border-left:3px solid #d4b89c;
+            margin:12px 0;
+            font-size:13px;
+            line-height:1.7;
+            color:#555;
+        }
+
+        .control-group {
+            display:flex;
+            gap:12px;
+            margin-top:30px;
+        }
+        .btn {
+            flex:1;padding:12px 0;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;transition:0.25s ease;
+        }
+        .prev { background:#f0e6d6;color:#78401a; }
+        .prev:hover:not(:disabled) { background:#e2d4bf;transform:translateY(-2px); }
+        .prev:active:not(:disabled) { transform:translateY(1px); }
+        .next { background:#78401a;color:#fff; }
+        .next:hover { background:#643415;transform:translateY(-2px); }
+        .next:active { transform:translateY(1px); }
+        .btn:disabled { opacity:0.45;cursor:not-allowed;transform:none; }
+
+        .timeline-box {
+            position:absolute;
+            bottom:0;
+            left:0;
+            width:100%;
+            height:70px;
+            background:#fff;
+            box-shadow:0 -2px 8px rgba(0,0,0,0.08);
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            gap:16px;
+            z-index:9998;
+        }
+        .timeline-title {
+            font-size:14px;color:#78401a;font-weight:600;
+        }
+        .timeline-slider {
+            width:500px;accent-color:#b8862a;
+        }
+        .time-label {
+            font-size:12px;color:#555;display:flex;gap:12px;
+        }
+        .event-tag {
+            font-size:11px;color:#997554;
+        }
+
+        .audio-btn {
+            position:absolute;
+            bottom:74px;
+            right:calc(30% + 16px);
+            width:36px;height:36px;border-radius:50%;background:#78401a;color:#fff;border:none;cursor:pointer;z-index:9999;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:14px;transition:0.2s;
+        }
+        .audio-btn:hover {transform:scale(1.05);}
+
+        .leaflet-control-zoom {
+            right:calc(30% + 16px) !important;
+            bottom:74px !important;
+        }
+
+        .hover-popup {
+            background:#fffdf7;border:1px solid #e0cbb7;padding:8px 12px;border-radius:6px;font-size:12px;color:#444;box-shadow:0 2px 8px rgba(0,0,0,0.1);pointer-events:none;white-space:nowrap;
         }
     </style>
 </head>
 <body>
-    <!-- 页眉区域 -->
-    <div id="header">WebGIS 地图应用作业 - 疫情病例专题图</div>
 
-    <!-- 主体：地图区域 + 控制区域 -->
-    <div id="main-container">
-        <!-- 底图与图层控制区域 -->
-        <div id="sidebar">
-            <div class="control-title">底图切换</div>
-            <button class="basemap-btn" onclick="changeBasemap('streets')">街道底图</button>
-            <button class="basemap-btn" onclick="changeBasemap('satellite')">卫星底图</button>
-            <button class="basemap-btn" onclick="changeBasemap('topo-vector')">地形底图</button>
-
-            <div class="control-title">图层列表</div>
-            <div id="layerList"></div>
-        </div>
-
-        <!-- 地图区域 -->
-        <div id="map-container"></div>
+<div class="navbar">
+    <div class="project-title">福州中轴线时空叙事地图 · 闽都千年文脉</div>
+    <div class="nav-menu">
+        <a href="#intro">项目总览</a>
+        <a href="#map">时空漫游</a>
+        <a href="#culture">闽派文化</a>
+        <a href="#folk">民俗非遗</a>
+        <a href="#about">项目说明</a>
     </div>
+</div>
 
-    <script>
-        require([
-            "esri/Map",
-            "esri/views/MapView",
-            "esri/layers/FeatureLayer",
-            "esri/widgets/LayerList",
-            "esri/widgets/ScaleBar",
-            "esri/widgets/Legend",
-            "esri/widgets/Search"
-        ], function(Map, MapView, FeatureLayer, LayerList, ScaleBar, Legend, Search) {
+<div id="map"></div>
 
-            // 1. 创建地图，默认加载街道底图
-            const map = new Map({
-                basemap: "streets"
-            });
+<div class="left-panel">
+    <h4>地图时代切换</h4>
+    <div class="layer-item"><input type="radio" name="era" id="mod" checked><label for="mod">现代标准地图</label></div>
+    <div class="layer-item"><input type="radio" name="era" id="qing"><label for="qing">清代复古地图</label></div>
+    <div class="layer-item"><input type="radio" name="era" id="mg"><label for="mg">民国街巷地图</label></div>
+    <h4 style="margin-top:16px;">内容筛选</h4>
+    <div class="filter-item"><input type="checkbox" id="f1" checked><label for="f1">古城核心地标</label></div>
+    <div class="filter-item"><input type="checkbox" id="f2" checked><label for="f2">商贸文化遗迹</label></div>
+    <div class="filter-item"><input type="checkbox" id="f3" checked><label for="f3">近代开放风貌</label></div>
+</div>
 
-            // 2. 添加你提供的 Geoscene Online 专题图层
-            const covidLayer = new FeatureLayer({
-                url: "https://www.geosceneonline.cn/server/rest/services/Hosted/新型冠状病毒疫情全球病例统计new/FeatureServer",
-                title: "全球新冠疫情病例统计"
-            });
-            map.add(covidLayer);
+<div class="legend-panel">
+    <h4>中轴线图例</h4>
+    <div class="legend-item"><div class="dot" style="background:#78401a;"></div><span>明代古城地标</span></div>
+    <div class="legend-item"><div class="dot" style="background:#b8862a;"></div><span>明清人文街区</span></div>
+    <div class="legend-item"><div class="dot" style="background:#d49237;"></div><span>近代商贸遗迹</span></div>
+    <div class="legend-item"><div class="dot" style="background:#2e8b57;"></div><span>开埠万国建筑</span></div>
+    <div class="legend-item"><div class="dot" style="background:#e1bc41;"></div><span>城市中轴线走向</span></div>
+    <div class="tech-info">WebGIS时空叙事地图<br>技术栈：Leaflet | 数据来源：福州地方志</div>
+</div>
 
-            // 3. 创建地图视图
-            const view = new MapView({
-                container: "map-container",
-                map: map,
-                center: [116.4, 39.9], // 初始定位：北京
-                zoom: 3
-            });
+<div class="story-panel">
+    <div class="main-title">闽都千年文脉</div>
+    <div class="sub-title">时空叙事 · 漫游福州南北中轴线</div>
+    <div class="content" id="storyBox">
+        <h3>项目开篇 · 中轴线：福州的城市脊梁</h3>
+        <p>福州，两千二百余年建城史，自汉代冶城始建，城市格局始终围绕一条南北中轴线生长。这条轴线北起屏山之巅镇海楼，向南串联鼓楼、三坊七巷、于山乌山、南门兜、上下杭、万寿古桥，最终抵达仓山烟台山，完整串联起明清古城、近代开埠、现代都市三大历史阶段。</p>
+        <p>它不仅是地理上的城市骨架，更是闽都文化的时间轴线：从古代海防城池，到东南人文重镇，再到海上丝路商贸枢纽，最后成为中西文化交融的开放口岸。本时空叙事地图，以漫游形式，带领观者沿中轴线回溯福州千年变迁，沉浸式感受闽都文脉的传承与新生。</p>
+        <p class="transition-line">点击开始漫游，开启从明代至今的福州时光之旅。</p>
+    </div>
+    <div class="control-group">
+        <button class="btn prev" id="prevBtn" disabled>上一站</button>
+        <button class="btn next" id="nextBtn">开始漫游</button>
+    </div>
+</div>
 
-            // 4. 加载完成后添加所有控件
-            view.when(function() {
-                // 图层列表（显示在侧边栏）
-                const layerList = new LayerList({
-                    view: view,
-                    container: "layerList"
-                });
+<div class="timeline-box">
+    <span class="timeline-title">时间轴：</span>
+    <input type="range" min="1400" max="2025" value="2025" class="timeline-slider" id="timeSlider">
+    <div class="time-label">
+        <span>1400<br><span class="event-tag">洪武建楼</span></span>
+        <span>1840<br><span class="event-tag">五口通商</span></span>
+        <span>1911<br><span class="event-tag">民国开埠</span></span>
+        <span>1949<br><span class="event-tag">城市新生</span></span>
+        <span>现代</span>
+    </div>
+</div>
 
-                // 比例尺（左下角）
-                const scaleBar = new ScaleBar({
-                    view: view,
-                    unit: "metric"
-                });
-                view.ui.add(scaleBar, "bottom-left");
+<button class="audio-btn" id="audioBtn">♪</button>
+<audio id="bgAudio" loop preload="auto">
+    <source src="https://assets.mixkit.co/sfx/preview/mixkit-ancient-chinese-style-ambience-1224.mp3" type="audio/mpeg">
 
-                // 图例（右上角）
-                const legend = new Legend({
-                    view: view
-                });
-                view.ui.add(legend, "top-right");
 
-                // 搜索框（左上角）
-                const search = new Search({
-                    view: view
-                });
-                view.ui.add(search, "top-left");
-            });
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    const map = L.map('map',{zoomControl:false,attributionControl:false}).setView([26.083,119.285],11);
+    const tileModern = L.tileLayer('https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',{maxZoom:19}).addTo(map);
+    L.control.zoom({position:'bottomright'}).addTo(map);
 
-            // 5. 底图切换函数（侧边栏按钮调用）
-            window.changeBasemap = function(basemapId) {
-                map.basemap = basemapId;
-            }
+    const axisPoints = [
+        [26.0980,119.2830],[26.0920,119.2835],[26.0880,119.2840],[26.0820,119.2840],
+        [26.0740,119.2840],[26.0640,119.2850],[26.0540,119.2860]
+    ];
+    const mainAxis = L.polyline(axisPoints,{
+        color:'#e1bc41',weight:6,opacity:0.85,dashArray:"15 8",lineCap:'round'
+    }).addTo(map);
+    mainAxis.off('click');
+
+    // 古风定位图标
+    const iconDef = {
+        ancient: L.divIcon({
+            html: `<div style="width:32px;height:32px;background:#78401a;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px #78401a, 0 3px 8px rgba(0,0,0,0.2);position:relative;">
+                    <div style="width:6px;height:6px;background:#fff;border-radius:50%;position:absolute;top:50%;left:50%;transform: translate(-50%,-50%);"></div>
+                   </div>`,
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+        }),
+        human: L.divIcon({
+            html: `<div style="width:32px;height:32px;background:#b8862a;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px #b8862a, 0 3px 8px rgba(0,0,0,0.2);position:relative;">
+                    <div style="width:6px;height:6px;background:#fff;border-radius:50%;position:absolute;top:50%;left:50%;transform: translate(-50%,-50%);"></div>
+                   </div>`,
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+        }),
+        trade: L.divIcon({
+            html: `<div style="width:32px;height:32px;background:#d49237;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px #d49237, 0 3px 8px rgba(0,0,0,0.2);position:relative;">
+                    <div style="width:6px;height:6px;background:#fff;border-radius:50%;position:absolute;top:50%;left:50%;transform: translate(-50%,-50%);"></div>
+                   </div>`,
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+        }),
+        modern: L.divIcon({
+            html: `<div style="width:32px;height:32px;background:#2e8b57;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px #2e8b57, 0 3px 8px rgba(0,0,0,0.2);position:relative;">
+                    <div style="width:6px;height:6px;background:#fff;border-radius:50%;position:absolute;top:50%;left:50%;transform: translate(-50%,-50%);"></div>
+                   </div>`,
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+        })
+    };
+
+    const sites = [
+        {
+            title:"第一章｜明代海防之巅・屏山与镇海楼",
+            html:`
+                <span class="time-tag">明代・1371｜洪武戍海，龙脉起城</span>
+                <h3>自城北屏山起，中轴线枕越王龙脉，扼闽海咽喉。</h3>
+                <p>风过山巅，镇海楼巍然矗立。</p>
+                <p>明洪武四年，为御东南倭患，戍楼筑于屏山之巅。青砖叠垒，飞檐翘角，以一城制高点，守望闽江潮起潮落。</p>
+                <div class="story-tip">📜 <strong>戚继光戍守镇海楼</strong>
+                <br>明嘉靖年间倭寇频繁袭扰福州，戚继光率兵驻守屏山。他常登镇海楼瞭望海面，在此排布海防、操练士兵。民间传说，每当海风呼啸，便是将军戍边的呐喊回响山间。</div>
+                <p>六百载风雨漫漶，楼体几经修葺，仍以海防城楼之姿，承载福州千年戍边记忆。戚继光曾在此布防，江风掠过城墙，尽是抗倭戍国的铮铮回响。</p>
+                <p>此为闽都古城之始，文脉自此向南缓缓铺展。</p>
+                <div class="divider"></div>
+                <p class="transition-line">沿城市脊梁一路南行，时光从戍边城楼，漫入三坊七巷的文人深巷。</p>
+            `,
+            lat:26.098,lng:119.283,zoom:15,era:"1400",type:"古城",icon:iconDef.ancient,
+            markers:[L.marker([26.0980,119.2830],{icon:iconDef.ancient}).bindTooltip("屏山·镇海楼｜明代戍海城楼",{permanent:false,direction:'right',className:'hover-popup'})]
+        },
+        {
+            title:"第二章｜明清人文雅韵・三坊七巷",
+            html:`
+                <span class="time-tag">明清・千年坊巷｜文气绵延，名士栖居</span>
+                <h3>自屏山向南，中轴线越城郭街巷，入三坊七巷。</h3>
+                <p>白墙黛瓦，马鞍墙连绵成韵；坊巷纵横，燕尾脊刺破天光。</p>
+                <p>自晋代肇始，历唐宋兴盛，至明清鼎盛。衣锦、文儒、光禄三坊藏雅，杨桥、郎官、宫、吉庇七巷流芳。闽派古厝深巷错落，雕花窗棂浸润百年烟火。</p>
+                <div class="story-tip">📜 <strong>冰心的童年坊巷时光</strong>
+                <br>冰心幼年随家人居住在杨桥巷，她在《我的故乡》里写道：“福州是我的故乡，坊巷里的石板路、老榕树、潺潺流水，是我一生温柔的底色。”小小巷弄，藏着一代文豪的童年记忆。</div>
+                <p>林则徐、严复、冰心、林徽因栖居于此。一纸家书、一腔家国、一世风骨，皆沉淀于这片坊巷肌理。</p>
+                <p>这里藏着半部近现代闽人风骨，一城文脉，自此温润绵长。</p>
+                <div class="divider"></div>
+                <p class="transition-line">越乌山余脉，中轴线自文人雅巷，漫向闽江潮岸的市井商埠。</p>
+            `,
+            lat:26.086,lng:119.285,zoom:15,era:"1600",type:"human",icon:iconDef.human,
+            markers:[L.marker([26.0854,119.2958],{icon:iconDef.human}).bindTooltip("三坊七巷｜明清人文坊巷",{permanent:false,direction:'right',className:'hover-popup'})]
+        },
+        {
+            title:"第三章｜近代闽商风云・上下杭历史街区",
+            html:`
+                <span class="time-tag">晚清・1840｜潮起闽江，商脉启兴</span>
+                <h3>自三坊七巷向南，中轴线越乌山余脉，临闽江潮岸。</h3>
+                <p>市井烟火自此漫过文人深巷，福州千年文脉，在江风涛声里转入商埠风云。</p>
+                <p>上下杭枕闽江而立，百年间帆樯云集，商帮辐辏。</p>
+                <div class="story-tip">📜 <strong>百年闽茶出海传奇</strong>
+                <br>晚清上下杭是福建茶叶出口第一码头，福州茉莉花茶、武夷岩茶从这里上船，漂洋到南洋、欧美。一位叫张秋舫的茶商，从这里白手起家，成为南洋知名侨商，带动万千福州人下南洋谋生。</div>
+                <p>上杭街会馆鳞次，钱庄票号藏于深庭，官绅商贾在此聚散；下杭街骑楼连廊，码头商行临江而筑，江潮与市声朝夕交织。永德会馆、三通桥、采峰别墅，镌刻着闽商拓海的岁月镌痕。</p>
+                <p>闽茶、建木、蔗糖、海货顺黄金水道远渡南洋，闽地商脉自此联通四海。市井之间，福州评话、脱胎漆器、寿山石交易浸润日常，非遗烟火生生不息。</p>
+                <p>潮起潮落间，这里亦沉淀红色星火，革命志士栖居于此，商贸风云与家国记忆共生。</p>
+                <div class="divider"></div>
+                <p class="transition-line">江潮不息，文脉南渡。越过万寿古桥，中轴线渡向闽江南岸，奔赴烟台山的开埠晨光。</p>
+            `,
+            lat:26.074,lng:119.284,zoom:15.5,era:"1840",type:"trade",icon:iconDef.trade,
+            markers:[L.marker([26.0740,119.2840],{icon:iconDef.trade}).bindTooltip("上下杭｜闽江商埠码头",{permanent:false,direction:'right',className:'hover-popup'})]
+        },
+        {
+            title:"第四章｜江海千年咽喉・万寿桥（解放大桥）",
+            html:`
+                <span class="time-tag">宋代・1094｜江上架梁，南北通衢</span>
+                <h3>自上下杭向南，中轴线临闽江浩渺，渡万寿古桥。</h3>
+                <p>江潮汤汤，石桥横亘千年。</p>
+                <div class="story-tip">📜 <strong>百姓捐石造桥的传说</strong>
+                <br>北宋建万寿桥时，江面宽阔水流湍急，官府财力不足。福州百姓自发捐石、捐钱、出力，百姓家的磨刀石、门槛石、旧石碑都被搬去建桥。百姓之力，终成千年通途，至今民间仍称它为“万民桥”。</div>
+                <p>北宋元祐年间，王祖道率众筑此长桥。巨梁卧波，石墩镇浪，以一桥之力，打通江北商埠与江南口岸的脉络。</p>
+                <p>千年洪水、台风、战火漫过桥面，宋代石梁仍隐于江水之下。桥身见证闽江航运起落，承接江北商脉，接引南岸开埠新风。</p>
+                <p>一桥连两岸，一城贯古今。</p>
+                <div class="divider"></div>
+                <p class="transition-line">渡尽江涛，中轴线落于仓山烟台山，中西风华自此相逢。</p>
+            `,
+            lat:26.064,lng:119.285,zoom:15.5,era:"1860",type:"trade",icon:iconDef.trade,
+            markers:[L.marker([26.0640,119.2850],{icon:iconDef.trade}).bindTooltip("万寿桥｜宋代跨江古桥",{permanent:false,direction:'right',className:'hover-popup'})]
+        },
+        {
+            title:"第五章｜近代开放风华・烟台山万国建筑博览群",
+            html:`
+                <span class="time-tag">民国・1911｜开埠通商，中西共生</span>
+                <h3>自万寿桥向南，中轴线越闽江，登烟台山。</h3>
+                <p>海风西来，万国建筑栖居山间。</p>
+                <div class="story-tip">📜 <strong>美国领事的福州乡愁</strong>
+                <br>民国美国驻福州领事曾在烟台山居住多年，离任回国后，晚年仍时常怀念烟台山的榕树、闽江晚霞，在日记里写下：“福州的风，是我一生最温柔的海风。”</div>
+                <p>五口通商之后，英、美、法、德、日十七国在此设立领事馆。哥特尖顶刺破云光，巴洛克回廊依山而筑，罗马式穹顶映照着闽江潮汐。</p>
+                <p>洋行、教堂、别墅错落山间，西洋风尚与闽地山水交融共生。江风掠过洋楼，诉说着近代福州对外开放的岁月回响。</p>
+                <p>至此，中轴线自北向南，完成从戍边古城、人文雅巷，到商埠码头、开埠口岸的完整蜕变。</p>
+                <div class="divider"></div>
+                <p class="transition-line">回望一轴山水，千年闽都，尽在这条向南流淌的时光脉络里。</p>
+            `,
+            lat:26.054,lng:119.286,zoom:15.5,era:"1911",type:"modern",icon:iconDef.modern,
+            markers:[L.marker([26.0540,119.2860],{icon:iconDef.modern}).bindTooltip("烟台山｜万国建筑博览群",{permanent:false,direction:'right',className:'hover-popup'})]
+        },
+        {
+            title:"终章｜文脉永续・中轴线的当代新生",
+            html:`
+                <span class="time-tag">现代・2025｜一轴贯古今，文脉永流传</span>
+                <h3>溯中轴线一路向南，阅尽千年闽都。</h3>
+                <div class="story-tip">📜 <strong>中轴线守护人</strong>
+                <br>如今有许多老福州匠人、文史志愿者，自发守护这条中轴线：修复古厝、整理老街故事、讲解福州历史。他们让千年中轴线，继续在当代烟火里生长、发光。</div>
+                <p>自屏山戍楼，至三坊文巷，经上下杭商潮，渡万寿江桥，终至烟台山开埠风华。</p>
+                <p>一条南北轴线，串联起海防戍国、名士栖居、海丝拓商、开埠开放的完整城市记忆。</p>
+                <p>岁月流转，古建新生。坊巷依旧，江潮不息。三坊七巷、上下杭、烟台山在当代烟火中延续文脉，闽都气韵浸润城市日常。</p>
+                <p>本时空叙事地图，以WebGIS为舟，以中轴线为脉，沿一路向南的漫游，看见一座城的千年生长。</p>
+                <div class="divider"></div>
+                <p style="text-align:center;font-size:16px;color:#78401a;font-weight:600;margin-top:10px;">一条中轴线，半部福州史；一轴贯古今，文脉永流传。</p>
+            `,
+            lat:26.083,lng:119.285,zoom:12,era:"2025",type:"all",icon:null,markers:[]
+        }
+    ];
+
+    let idx=-1;
+    const box=document.getElementById('storyBox');
+    const prevBtn=document.getElementById('prevBtn');
+    const nextBtn=document.getElementById('nextBtn');
+    let markList=[];
+
+    function clearMark(){
+        markList.forEach(m=>{m.off('click');map.removeLayer(m);});markList=[];
+    }
+    function go(i){
+        if(i<0||i>=sites.length)return;
+        idx=i;
+        const s=sites[i];
+        box.innerHTML=`<h3>${s.title}</h3>${s.html}`;
+        map.flyTo([s.lat,s.lng],s.zoom,{duration:1.5});
+        clearMark();
+        s.markers.forEach(m=>{m.off('click');m.addTo(map);markList.push(m);});
+        prevBtn.disabled=idx===0;
+        nextBtn.innerText=idx===sites.length-1?"重新漫游":"下一站";
+        document.getElementById('timeSlider').value=s.era;
+        if(i===0) mainAxis.setStyle({color:'#78401a'});
+        else if(i===1) mainAxis.setStyle({color:'#b8862a'});
+        else if(i>=2&&i<=4) mainAxis.setStyle({color:'#d49237'});
+        else mainAxis.setStyle({color:'#e1bc41'});
+    }
+    nextBtn.onclick=()=>go(idx===sites.length-1?0:idx+1);
+    prevBtn.onclick=()=>go(idx-1);
+
+    document.getElementById('mod').onchange=()=>{document.getElementById('map').className="";};
+    document.getElementById('qing').onchange=()=>{document.getElementById('map').className="map-qing";};
+    document.getElementById('mg').onchange=()=>{document.getElementById('map').className="map-minguo";};
+
+    const slider=document.getElementById('timeSlider');
+    slider.oninput=()=>{
+        const val=parseInt(slider.value);
+        if(val<1600) go(0);
+        else if(val<1840) go(1);
+        else if(val<1860) go(2);
+        else if(val<1911) go(3);
+        else if(val<2000) go(4);
+        else go(5);
+    };
+
+    const f1=document.getElementById('f1'),f2=document.getElementById('f2'),f3=document.getElementById('f3');
+    function filterMarkers(){
+        clearMark();
+        const s=sites[idx];
+        s.markers.forEach(m=>{
+            const t=s.type;
+            if(t==="古城"&&!f1.checked)return;
+            if(t==="human"&&!f1.checked)return;
+            if(t==="trade"&&!f2.checked)return;
+            if(t==="modern"&&!f3.checked)return;
+            m.addTo(map);markList.push(m);
         });
-    </script>
+    }
+    [f1,f2,f3].forEach(el=>el.onchange=filterMarkers);
+
+    const audio=document.getElementById('bgAudio');
+    const audioBtn=document.getElementById('audioBtn');
+    let audioPlay=false;
+    audioBtn.onclick=()=>{
+        if(audioPlay){audio.pause();audioPlay=false;audioBtn.innerText="♪";}
+        else{audio.play();audioPlay=true;audioBtn.innerText="🔇";}
+    };
+</script>
 </body>
 </html>
