@@ -75,11 +75,15 @@
             z-index: 1;
             background-color: #f3ede2;
         }
-
-        .map-qing .leaflet-tile-pane { filter: sepia(92%) contrast(88%) brightness(102%) saturate(22%); }
-        .map-minguo .leaflet-tile-pane { filter: sepia(78%) contrast(90%) brightness(106%) saturate(32%); }
-        .map-modern .leaflet-tile-pane { filter: saturate(60%) brightness(98%); }
-        .leaflet-tile-pane { transition: all 0.8s ease; }
+        /* 宣纸纹理叠加 */
+        #map::after{
+            content:"";
+            position:absolute;
+            top:0;left:0;right:0;bottom:0;
+            background-image:url("data:image/svg+xml,%3Csvg width='200' height='200' viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h200v200H0z' fill='%23f8f3eb' fill-opacity='0.08'/%3E%3C/svg%3E");
+            pointer-events:none;
+            z-index:2;
+        }
 
         .left-panel {
             position: absolute;
@@ -138,6 +142,14 @@
         }
         .dot {
             width:14px;height:14px;border-radius:50%;margin-right:8px;border:2px solid #fff;box-shadow:0 1px 2px rgba(0,0,0,0.1);
+        }
+        .axis-line-legend {
+            width: 22px;
+            height: 4px;
+            border-radius: 2px;
+            background: linear-gradient(90deg, #e1bc41 0%, #d49237 100%);
+            margin-right: 8px;
+            border: 1px solid #fff;
         }
         .tech-info {
             margin-top:10px;font-size:11px;color:#777;line-height:1.4;border-top:1px dashed #eee;padding-top:8px;
@@ -269,6 +281,41 @@
         .hover-popup {
             background:#fffdf7;border:1px solid #e0cbb7;padding:8px 12px;border-radius:6px;font-size:12px;color:#444;box-shadow:0 2px 8px rgba(0,0,0,0.1);pointer-events:none;white-space:nowrap;
         }
+        /* 中轴线流动光效 */
+        @keyframes flowLine {
+          0% { stroke-dashoffset: 200; }
+          100% { stroke-dashoffset: 0; }
+        }
+        /* 古风悬浮卡片 */
+        .pop-card {
+          background:#fffdf7;
+          border:1px solid #d4b89c;
+          border-radius:8px;
+          padding:10px 14px;
+          box-shadow:0 3px 10px rgba(120,64,26,0.15);
+          font-size:13px;
+          color:#444;
+          max-width:220px;
+        }
+        .pop-card h5 {
+          color:#78401a;
+          margin-bottom:4px;
+          font-size:14px;
+        }
+        /* 诗句轮播 - 中下居中 */
+        .poem-box {
+          position:absolute;
+          left:0;
+          right:30%;
+          bottom:75px;
+          text-align:center;
+          z-index:9999;
+          font-size:15px;
+          color:#78401a;
+          font-style:italic;
+          opacity:0.9;
+          letter-spacing:1px;
+        }
     </style>
 </head>
 <body>
@@ -287,11 +334,7 @@
 <div id="map"></div>
 
 <div class="left-panel">
-    <h4>地图时代切换</h4>
-    <div class="layer-item"><input type="radio" name="era" id="mod" checked><label for="mod">现代标准地图</label></div>
-    <div class="layer-item"><input type="radio" name="era" id="qing"><label for="qing">清代复古地图</label></div>
-    <div class="layer-item"><input type="radio" name="era" id="mg"><label for="mg">民国街巷地图</label></div>
-    <h4 style="margin-top:16px;">内容筛选</h4>
+    <h4>内容筛选</h4>
     <div class="filter-item"><input type="checkbox" id="f1" checked><label for="f1">古城核心地标</label></div>
     <div class="filter-item"><input type="checkbox" id="f2" checked><label for="f2">商贸文化遗迹</label></div>
     <div class="filter-item"><input type="checkbox" id="f3" checked><label for="f3">近代开放风貌</label></div>
@@ -303,8 +346,13 @@
     <div class="legend-item"><div class="dot" style="background:#b8862a;"></div><span>明清人文街区</span></div>
     <div class="legend-item"><div class="dot" style="background:#d49237;"></div><span>近代商贸遗迹</span></div>
     <div class="legend-item"><div class="dot" style="background:#2e8b57;"></div><span>开埠万国建筑</span></div>
-    <div class="legend-item"><div class="dot" style="background:#e1bc41;"></div><span>城市中轴线走向</span></div>
-    <div class="tech-info">WebGIS时空叙事地图<br>技术栈：Leaflet | 数据来源：福州地方志</div>
+    <div class="legend-item"><div class="axis-line-legend"></div><span>城市中轴线走向</span></div>
+    <div class="tech-info">WebGIS时空叙事地图<br>数据来源：福州地方志</div>
+</div>
+
+<!-- 诗句轮播 -->
+<div class="poem-box">
+  <span id="poemText">三坊七巷千年韵，一轴闽都万古情</span>
 </div>
 
 <div class="story-panel">
@@ -337,7 +385,7 @@
 <button class="audio-btn" id="audioBtn">♪</button>
 <audio id="bgAudio" loop preload="auto">
     <source src="https://assets.mixkit.co/sfx/preview/mixkit-ancient-chinese-style-ambience-1224.mp3" type="audio/mpeg">
-
+</audio>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -350,37 +398,39 @@
         [26.0740,119.2840],[26.0640,119.2850],[26.0540,119.2860]
     ];
     const mainAxis = L.polyline(axisPoints,{
-        color:'#e1bc41',weight:6,opacity:0.85,dashArray:"15 8",lineCap:'round'
+        color:'#d49237',weight:7,opacity:0.9,dashArray:"18 10",lineCap:'round'
     }).addTo(map);
     mainAxis.off('click');
 
-    // 古风定位图标
+    // 中轴线流动光效
+    const flowAxis = L.polyline(axisPoints, {
+      color:'#ffd770',weight:3,opacity:0.6,dashArray:"8 12",lineCap:'round'
+    }).addTo(map);
+    flowAxis._path.style.animation = "flowLine 3s linear infinite";
+
+    // ========== 统一古风印章图标（全部同款样式） ==========
     const iconDef = {
+        // 明代 · 镇海楼 朱红印章
         ancient: L.divIcon({
-            html: `<div style="width:32px;height:32px;background:#78401a;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px #78401a, 0 3px 8px rgba(0,0,0,0.2);position:relative;">
-                    <div style="width:6px;height:6px;background:#fff;border-radius:50%;position:absolute;top:50%;left:50%;transform: translate(-50%,-50%);"></div>
-                   </div>`,
+            html: `<div style="width:32px;height:32px;background:#992828;color:#fff;font-size:16px;display:grid;place-items:center;border-radius:4px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.2);font-weight:bold;">镇</div>`,
             iconSize: [32, 32],
             iconAnchor: [16, 16]
         }),
+        // 明清 · 三坊七巷 深棕印章
         human: L.divIcon({
-            html: `<div style="width:32px;height:32px;background:#b8862a;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px #b8862a, 0 3px 8px rgba(0,0,0,0.2);position:relative;">
-                    <div style="width:6px;height:6px;background:#fff;border-radius:50%;position:absolute;top:50%;left:50%;transform: translate(-50%,-50%);"></div>
-                   </div>`,
+            html: `<div style="width:32px;height:32px;background:#8c5c28;color:#fff;font-size:16px;display:grid;place-items:center;border-radius:4px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.2);font-weight:bold;">坊</div>`,
             iconSize: [32, 32],
             iconAnchor: [16, 16]
         }),
+        // 商贸 · 上下杭/万寿桥 金色印章
         trade: L.divIcon({
-            html: `<div style="width:32px;height:32px;background:#d49237;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px #d49237, 0 3px 8px rgba(0,0,0,0.2);position:relative;">
-                    <div style="width:6px;height:6px;background:#fff;border-radius:50%;position:absolute;top:50%;left:50%;transform: translate(-50%,-50%);"></div>
-                   </div>`,
+            html: `<div style="width:32px;height:32px;background:#d49237;color:#fff;font-size:16px;display:grid;place-items:center;border-radius:4px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.2);font-weight:bold;">商</div>`,
             iconSize: [32, 32],
             iconAnchor: [16, 16]
         }),
+        // 近代 · 烟台山 墨绿印章
         modern: L.divIcon({
-            html: `<div style="width:32px;height:32px;background:#2e8b57;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px #2e8b57, 0 3px 8px rgba(0,0,0,0.2);position:relative;">
-                    <div style="width:6px;height:6px;background:#fff;border-radius:50%;position:absolute;top:50%;left:50%;transform: translate(-50%,-50%);"></div>
-                   </div>`,
+            html: `<div style="width:32px;height:32px;background:#2e7050;color:#fff;font-size:16px;display:grid;place-items:center;border-radius:4px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.2);font-weight:bold;">埠</div>`,
             iconSize: [32, 32],
             iconAnchor: [16, 16]
         })
@@ -402,7 +452,9 @@
                 <p class="transition-line">沿城市脊梁一路南行，时光从戍边城楼，漫入三坊七巷的文人深巷。</p>
             `,
             lat:26.098,lng:119.283,zoom:15,era:"1400",type:"古城",icon:iconDef.ancient,
-            markers:[L.marker([26.0980,119.2830],{icon:iconDef.ancient}).bindTooltip("屏山·镇海楼｜明代戍海城楼",{permanent:false,direction:'right',className:'hover-popup'})]
+            markers:[L.marker([26.0980,119.2830],{icon:iconDef.ancient})
+                .bindPopup(`<div class="pop-card"><h5>屏山·镇海楼</h5><p>明代海防城楼，福州龙脉起点</p></div>`)
+                .bindTooltip("屏山·镇海楼｜明代戍海城楼",{permanent:false,direction:'right',className:'hover-popup'})]
         },
         {
             title:"第二章｜明清人文雅韵・三坊七巷",
@@ -419,7 +471,9 @@
                 <p class="transition-line">越乌山余脉，中轴线自文人雅巷，漫向闽江潮岸的市井商埠。</p>
             `,
             lat:26.086,lng:119.285,zoom:15,era:"1600",type:"human",icon:iconDef.human,
-            markers:[L.marker([26.0854,119.2958],{icon:iconDef.human}).bindTooltip("三坊七巷｜明清人文坊巷",{permanent:false,direction:'right',className:'hover-popup'})]
+            markers:[L.marker([26.0854,119.2958],{icon:iconDef.human})
+                .bindPopup(`<div class="pop-card"><h5>三坊七巷</h5><p>明清人文坊巷，闽派文脉核心</p></div>`)
+                .bindTooltip("三坊七巷｜明清人文坊巷",{permanent:false,direction:'right',className:'hover-popup'})]
         },
         {
             title:"第三章｜近代闽商风云・上下杭历史街区",
@@ -437,7 +491,9 @@
                 <p class="transition-line">江潮不息，文脉南渡。越过万寿古桥，中轴线渡向闽江南岸，奔赴烟台山的开埠晨光。</p>
             `,
             lat:26.074,lng:119.284,zoom:15.5,era:"1840",type:"trade",icon:iconDef.trade,
-            markers:[L.marker([26.0740,119.2840],{icon:iconDef.trade}).bindTooltip("上下杭｜闽江商埠码头",{permanent:false,direction:'right',className:'hover-popup'})]
+            markers:[L.marker([26.0740,119.2840],{icon:iconDef.trade})
+                .bindPopup(`<div class="pop-card"><h5>上下杭</h5><p>闽江百年商埠，闽商出海起点</p></div>`)
+                .bindTooltip("上下杭｜闽江商埠码头",{permanent:false,direction:'right',className:'hover-popup'})]
         },
         {
             title:"第四章｜江海千年咽喉・万寿桥（解放大桥）",
@@ -454,7 +510,9 @@
                 <p class="transition-line">渡尽江涛，中轴线落于仓山烟台山，中西风华自此相逢。</p>
             `,
             lat:26.064,lng:119.285,zoom:15.5,era:"1860",type:"trade",icon:iconDef.trade,
-            markers:[L.marker([26.0640,119.2850],{icon:iconDef.trade}).bindTooltip("万寿桥｜宋代跨江古桥",{permanent:false,direction:'right',className:'hover-popup'})]
+            markers:[L.marker([26.0640,119.2850],{icon:iconDef.trade})
+                .bindPopup(`<div class="pop-card"><h5>万寿桥</h5><p>宋代千年石桥，闽江通衢要道</p></div>`)
+                .bindTooltip("万寿桥｜宋代跨江古桥",{permanent:false,direction:'right',className:'hover-popup'})]
         },
         {
             title:"第五章｜近代开放风华・烟台山万国建筑博览群",
@@ -471,7 +529,9 @@
                 <p class="transition-line">回望一轴山水，千年闽都，尽在这条向南流淌的时光脉络里。</p>
             `,
             lat:26.054,lng:119.286,zoom:15.5,era:"1911",type:"modern",icon:iconDef.modern,
-            markers:[L.marker([26.0540,119.2860],{icon:iconDef.modern}).bindTooltip("烟台山｜万国建筑博览群",{permanent:false,direction:'right',className:'hover-popup'})]
+            markers:[L.marker([26.0540,119.2860],{icon:iconDef.modern})
+                .bindPopup(`<div class="pop-card"><h5>烟台山</h5><p>万国建筑博览，近代开放地标</p></div>`)
+                .bindTooltip("烟台山｜万国建筑博览群",{permanent:false,direction:'right',className:'hover-popup'})]
         },
         {
             title:"终章｜文脉永续・中轴线的当代新生",
@@ -511,17 +571,13 @@
         prevBtn.disabled=idx===0;
         nextBtn.innerText=idx===sites.length-1?"重新漫游":"下一站";
         document.getElementById('timeSlider').value=s.era;
-        if(i===0) mainAxis.setStyle({color:'#78401a'});
-        else if(i===1) mainAxis.setStyle({color:'#b8862a'});
-        else if(i>=2&&i<=4) mainAxis.setStyle({color:'#d49237'});
-        else mainAxis.setStyle({color:'#e1bc41'});
+        if(i===0) mainAxis.setStyle({color:'#78401a'}),flowAxis.setStyle({color:'#ffd770'});
+        else if(i===1) mainAxis.setStyle({color:'#b8862a'}),flowAxis.setStyle({color:'#ffdd80'});
+        else if(i>=2&&i<=4) mainAxis.setStyle({color:'#d49237'}),flowAxis.setStyle({color:'#ffc860'});
+        else mainAxis.setStyle({color:'#e1bc41'}),flowAxis.setStyle({color:'#ffd770'});
     }
     nextBtn.onclick=()=>go(idx===sites.length-1?0:idx+1);
     prevBtn.onclick=()=>go(idx-1);
-
-    document.getElementById('mod').onchange=()=>{document.getElementById('map').className="";};
-    document.getElementById('qing').onchange=()=>{document.getElementById('map').className="map-qing";};
-    document.getElementById('mg').onchange=()=>{document.getElementById('map').className="map-minguo";};
 
     const slider=document.getElementById('timeSlider');
     slider.oninput=()=>{
@@ -556,6 +612,19 @@
         if(audioPlay){audio.pause();audioPlay=false;audioBtn.innerText="♪";}
         else{audio.play();audioPlay=true;audioBtn.innerText="🔇";}
     };
+
+    // 诗句轮播
+    const poems = [
+      "三坊七巷千年韵，一轴闽都万古情",
+      "闽水泱泱，福山苍苍，文脉绵长",
+      "一条中轴线，半部福州史",
+      "镇海楼前观潮起，闽江岸上阅千年"
+    ];
+    let pIdx=0;
+    setInterval(()=>{
+      pIdx=(pIdx+1)%poems.length;
+      document.getElementById('poemText').innerText=poems[pIdx];
+    },4000);
 </script>
 </body>
 </html>
